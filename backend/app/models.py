@@ -6,9 +6,10 @@ writing SQL joins by hand.
 
     League ─┬─< Match >─┬─ Team (home)
             │           └─ Team (away)
-            │  Match ──< Prediction
-    Team ──< Player
-    User          (Week 4 adds user predictions)
+            │  Match ──< Prediction          (the model's odds)
+            │  Match ──< UserPrediction >── User   (Week 4: fans' predictions)
+    Team ──< Player ──< PlayerSeasonStats   (Week 4)
+    User ──< FavoriteTeam / FavoriteLeague  (Week 4)
 """
 
 from datetime import date, datetime, timezone
@@ -67,6 +68,7 @@ class Match(Base):
     home_goals: Mapped[int | None] = mapped_column(Integer)
     away_goals: Mapped[int | None] = mapped_column(Integer)
     neutral: Mapped[bool] = mapped_column(Boolean, default=False)
+    group_name: Mapped[str | None] = mapped_column(String(20), index=True)  # Week 4: "A1" for Nations League
     venue: Mapped[str | None] = mapped_column(String(150))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -99,7 +101,7 @@ class Prediction(Base):
 
 
 class Player(Base):
-    """Filled in Week 4 (Day 28). Defined now so the design is complete."""
+    """Day 28: players from the data provider (squads and top scorers)."""
 
     __tablename__ = "players"
 
@@ -109,9 +111,13 @@ class Player(Base):
     nationality: Mapped[str | None] = mapped_column(String(100))
     birth_date: Mapped[date | None] = mapped_column(Date)
     position: Mapped[str | None] = mapped_column(String(30))
+    shirt_number: Mapped[int | None] = mapped_column(Integer)
     team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"))
+    # Week 4: lowercase, no accents, so "mbappe" finds "Mbappé"
+    search_name: Mapped[str] = mapped_column(String(120), index=True, default="")
 
     team: Mapped[Team | None] = relationship(back_populates="players")
+    stats: Mapped[list["PlayerSeasonStats"]] = relationship(back_populates="player", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -123,3 +129,72 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(100))            # never the password itself
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------------------------------------------------------------- Week 4
+
+
+class UserPrediction(Base):
+    """Day 22: a fan's predicted score. Can be changed until kickoff, then locked.
+    Day 23 fills in the points once the match finishes, and the AI's points
+    for the same match (for Fan vs AI)."""
+
+    __tablename__ = "user_predictions"
+    __table_args__ = (UniqueConstraint("user_id", "match_id", name="uq_user_prediction"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    home_goals: Mapped[int] = mapped_column(Integer)
+    away_goals: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    points: Mapped[int | None] = mapped_column(Integer)        # empty until the match is scored
+    breakdown: Mapped[dict | None] = mapped_column(JSON)       # {"result": 5, "exact_score": 15, ...}
+    ai_score: Mapped[str | None] = mapped_column(String(10))   # what FOOTIQ predicted, e.g. "2-1"
+    ai_points: Mapped[int | None] = mapped_column(Integer)
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+    user: Mapped[User] = relationship()
+    match: Mapped[Match] = relationship()
+
+
+class FavoriteTeam(Base):
+    """Day 26"""
+
+    __tablename__ = "favorite_teams"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True)
+
+
+class FavoriteLeague(Base):
+    """Day 26"""
+
+    __tablename__ = "favorite_leagues"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id", ondelete="CASCADE"), primary_key=True)
+
+
+class PlayerSeasonStats(Base):
+    """Day 28: one row per player, per competition, per season."""
+
+    __tablename__ = "player_season_stats"
+    __table_args__ = (UniqueConstraint("player_id", "league_id", "season", name="uq_player_season"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), index=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    season: Mapped[int] = mapped_column(Integer)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"))
+    appearances: Mapped[int | None] = mapped_column(Integer)
+    goals: Mapped[int] = mapped_column(Integer, default=0)
+    assists: Mapped[int | None] = mapped_column(Integer)
+    penalties: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    player: Mapped[Player] = relationship(back_populates="stats")
+    league: Mapped[League] = relationship()
+    team: Mapped[Team | None] = relationship()

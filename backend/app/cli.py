@@ -7,10 +7,17 @@
     python -m app.cli daily                       sync + predict (what the scheduler runs)
     python -m app.cli teams --unmatched           teams the models don't recognise yet
     python -m app.cli set-team-name "Manchester City" "Man City"
+
+Week 4:
+    python -m app.cli score                       award points for finished matches
+    python -m app.cli import-nations-league       load the Nations League CSV (run again after adding scores)
+    python -m app.cli sync-scorers                top scorers of each league (5 requests)
+    python -m app.cli sync-squads --league E0     every player of every team (1 request per team, slow)
 """
 
 import argparse
 import json
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -20,7 +27,10 @@ from app.models import League, Match, Team
 from app.services.ingest import sync_all
 from app.services.predictor import generate_predictions, known_team_names
 from app.services.providers import ProviderError, get_provider
+from app.services.nations_league import DEFAULT_CSV, import_fixtures
+from app.services.players import sync_scorers, sync_squads
 from app.services.scheduler import run_daily_update
+from app.services.scoring import score_finished_matches
 
 
 def main(argv=None):
@@ -32,6 +42,10 @@ def main(argv=None):
     sub.add_parser("daily")
     t = sub.add_parser("teams"); t.add_argument("--unmatched", action="store_true")
     n = sub.add_parser("set-team-name"); n.add_argument("api_name"); n.add_argument("model_name")
+    sub.add_parser("score")
+    nl = sub.add_parser("import-nations-league"); nl.add_argument("path", nargs="?", default=str(DEFAULT_CSV))
+    sc = sub.add_parser("sync-scorers"); sc.add_argument("--league", action="append")
+    sq = sub.add_parser("sync-squads"); sq.add_argument("--league", action="append")
     args = parser.parse_args(argv)
 
     settings = get_settings()
@@ -80,6 +94,20 @@ def _run(args, settings, db):
             team.model_name = args.model_name
             db.commit()
             print(f"{team.name} -> {team.model_name}")
+    elif args.command == "score":
+        print(score_finished_matches(db))
+    elif args.command == "import-nations-league":
+        print(import_fixtures(db, Path(args.path)))
+        print(generate_predictions(db))
+    elif args.command == "sync-scorers":
+        for row in sync_scorers(db, get_provider(settings), args.league):
+            print(row)
+    elif args.command == "sync-squads":
+        print("About 7 seconds per team (free API limit). Press Ctrl+C to stop; saved teams are kept.")
+        result = sync_squads(db, get_provider(settings), args.league)
+        print({k: v for k, v in result.items() if k != "errors"})
+        for error in result["errors"]:
+            print("  error:", error)
 
 
 if __name__ == "__main__":

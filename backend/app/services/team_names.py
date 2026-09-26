@@ -18,11 +18,12 @@ from __future__ import annotations
 import difflib
 import json
 import re
-import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
 from footiq.international import TEAM_ALIASES
+
+from app.text import fold
 
 ALIASES_FILE = Path(__file__).resolve().parent.parent / "team_aliases.json"
 _DROP_WORDS = {"fc", "afc", "cf", "sc", "ac", "as", "ssc", "sv", "vfb", "vfl", "tsg", "fsv", "rc", "ogc",
@@ -38,8 +39,7 @@ def load_aliases() -> dict:
 
 
 def simplify(name: str) -> str:
-    text = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    words = re.sub(r"[^a-z0-9 ]", " ", text.lower()).split()
+    words = re.sub(r"[^a-z0-9 ]", " ", fold(name)).split()
     kept = [w for w in words if w not in _DROP_WORDS]
     return " ".join(kept or words)
 

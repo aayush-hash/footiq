@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, health, matches, simulate
+from app.routers import auth, health, home, matches, nations_league, performance, players, predictions, simulate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -41,5 +41,6 @@ app = FastAPI(
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(health.router)                        # /health stays short, for hosting checks
-for router in (matches.router, simulate.router, auth.router):
+for router in (matches.router, simulate.router, auth.router, predictions.router, performance.router,
+               home.router, nations_league.router, players.router):
     app.include_router(router, prefix="/api/v1")

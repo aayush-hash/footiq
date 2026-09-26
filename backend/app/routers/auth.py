@@ -12,6 +12,7 @@ from app.security import create_access_token, decode_access_token, hash_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+optional_oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
@@ -22,6 +23,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in",
                             headers={"WWW-Authenticate": "Bearer"})
     return user
+
+
+def get_optional_user(token: str | None = Depends(optional_oauth2), db: Session = Depends(get_db)) -> User | None:
+    """Like get_current_user, but returns None instead of an error when not logged in.
+    Used where logging in adds something (the leaderboard shows your own row)."""
+    user_id = decode_access_token(token) if token else None
+    user = db.get(User, user_id) if user_id else None
+    return user if user and user.is_active else None
 
 
 @router.post("/register", response_model=UserOut, status_code=201)

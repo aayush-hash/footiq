@@ -5,7 +5,7 @@ what the outside world sees. A User in the database has a password_hash;
 UserOut simply doesn't include it, so it can never leak by accident.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -114,3 +114,167 @@ class UserOut(ORM):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# ---------------------------------------------------------------- Week 4
+
+
+
+class UserPredictionIn(BaseModel):
+    """Day 22: your predicted score."""
+    home_goals: int = Field(ge=0, le=15)
+    away_goals: int = Field(ge=0, le=15)
+
+
+class UserPredictionOut(ORM):
+    match_id: int
+    home_goals: int
+    away_goals: int
+    points: int | None
+    breakdown: dict | None
+    ai_score: str | None
+    ai_points: int | None
+    created_at: datetime
+    updated_at: datetime
+    scored_at: datetime | None
+
+
+class FanVsAIOut(BaseModel):
+    """Day 24: fans against FOOTIQ, on the same matches and the same scoring rules."""
+    matches: int
+    fan_points: int
+    ai_points: int
+    fan_wins: int
+    ai_wins: int
+    ties: int
+
+
+class Streak(BaseModel):
+    current: int
+    best: int
+
+
+class MyStatsOut(BaseModel):
+    username: str
+    points: int
+    rank: int | None
+    predictions_scored: int
+    predictions_pending: int
+    correct_results: int
+    exact_scores: int
+    streak: Streak
+    fan_vs_ai: FanVsAIOut
+
+
+class LeaderboardRow(BaseModel):
+    rank: int
+    user_id: int
+    username: str
+    points: int
+    predictions: int
+    exact_scores: int
+
+
+class LeaderboardOut(BaseModel):
+    period: str
+    league: str | None
+    rows: list[LeaderboardRow]
+    me: LeaderboardRow | None
+
+
+class FavoritesIn(BaseModel):
+    """Day 26"""
+    team_ids: list[int] = []
+    league_codes: list[str] = []
+
+
+class FavoritesOut(BaseModel):
+    teams: list[TeamOut]
+    leagues: list[LeagueOut]
+
+
+class HomeOut(BaseModel):
+    username: str
+    local_time: str
+    has_favorites: bool
+    today: dict[str, int]
+    stats: MyStatsOut
+    favorite_matches: list[MatchDetail]
+    needs_your_prediction: list[MatchDetail]
+    recent_results: list[UserPredictionOut]
+
+
+class GroupSummary(BaseModel):
+    """Day 27"""
+    group: str
+    teams: list[str]
+
+
+class GroupTableRow(BaseModel):
+    pos: int
+    team: str
+    played: int
+    points: int
+    gf: int
+    ga: int
+    gd: int
+
+
+class GroupOddsRow(BaseModel):
+    team: str
+    avg_points: float
+    p1: float
+    p2: float
+    p3: float
+    p4: float
+    quarter_finals: float
+    playoff: float
+    relegated: float
+
+
+class GroupOut(BaseModel):
+    group: str
+    played: int
+    remaining: int
+    simulations: int
+    table: list[GroupTableRow]
+    odds: list[GroupOddsRow]
+    matches: list[MatchOut]
+
+
+class PlayerOut(ORM):
+    """Day 28"""
+    id: int
+    name: str
+    position: str | None
+    nationality: str | None
+    birth_date: date | None
+    age: int | None
+    shirt_number: int | None
+    team: TeamOut | None
+
+
+class PlayerStatsOut(BaseModel):
+    league_code: str
+    league: str
+    season: int
+    team: str | None
+    appearances: int | None
+    goals: int
+    assists: int | None
+    penalties: int | None
+
+
+class PlayerDetail(PlayerOut):
+    stats: list[PlayerStatsOut]
+
+
+class TopScorerOut(BaseModel):
+    rank: int
+    player_id: int
+    name: str
+    team: str | None
+    appearances: int | None
+    goals: int
+    assists: int | None
+    penalties: int | None
