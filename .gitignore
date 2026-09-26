@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Data and generated files (re-create them with the scripts)
+ml/data/
+ml/models/
+ml/reports/
+
+# Node / Expo (later)
+node_modules/
+.expo/
+
+# Secrets
+.env
+
+# Editors and OS
+.vscode/
+.DS_Store
+Thumbs.db
