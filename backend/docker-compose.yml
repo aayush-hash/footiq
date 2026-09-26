@@ -1,0 +1,23 @@
+# Day 14: PostgreSQL in Docker.
+#   docker compose up -d      start the database in the background
+#   docker compose ps         check it's running ("healthy")
+#   docker compose down       stop it (your data is kept in the volume)
+services:
+  db:
+    image: postgres:16
+    container_name: footiq-db
+    environment:
+      POSTGRES_USER: footiq
+      POSTGRES_PASSWORD: footiq
+      POSTGRES_DB: footiq
+    ports:
+               - "5433:5432"
+    volumes:
+      - footiq-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U footiq"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  footiq-db-data:
